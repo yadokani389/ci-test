@@ -1,0 +1,21 @@
+name: 'test'
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: test
+        run: echo hello
+
+      - name: uname
+        run: uname -a

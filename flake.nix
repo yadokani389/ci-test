@@ -48,6 +48,7 @@
             packages = with pkgs; [
               rust-bin.stable.latest.default
               process-compose
+              fastfetch
             ];
 
             DATABASE_URL = "postgresql://localhost:5432/app?user=app&password=passwd";

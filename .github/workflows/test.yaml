@@ -15,11 +15,22 @@ jobs:
 
       - uses: cachix/install-nix-action@v30
 
+      - name: use flake
+        run: echo "use flake" > .envrc
+
+      - uses: aldoborrero/direnv-nix-action@v2
+        with:
+          use_nix_profile: true
+          nix_channel: nixpkgs
+
+      - name: fastfetch
+        run: fastfetch
+
       - name: Test
         run: |
           nix run .#dev -- -D
-          nix develop -c cargo test
-          nix develop -c process-compose down
+          cargo test
+          process-compose down
 
       - name: Clippy
-        run: nix develop -c cargo clippy -- -Dwarnings
+        run: cargo clippy -- -Dwarnings

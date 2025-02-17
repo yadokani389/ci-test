@@ -7,6 +7,10 @@
     git-hooks-nix.url = "github:cachix/git-hooks.nix";
     services-flake.url = "github:juspay/services-flake";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -32,12 +36,17 @@
           ...
         }:
         {
+          _module.args.pkgs = import inputs.nixpkgs {
+            inherit system;
+            overlays = [ inputs.rust-overlay.overlays.default ];
+          };
+
           devShells.default = pkgs.mkShell {
             inputsFrom = [
               config.pre-commit.devShell
             ];
             packages = with pkgs; [
-              cargo
+              rust-bin.stable.latest.default
               process-compose
             ];
 

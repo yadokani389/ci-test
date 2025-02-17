@@ -1,75 +1,103 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    treefmt-nix.url = "github:numtide/treefmt-nix";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    systems.url = "github:nix-systems/default";
+    git-hooks-nix.url = "github:cachix/git-hooks.nix";
+    services-flake.url = "github:juspay/services-flake";
+    process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
   };
 
-  outputs = { nixpkgs, flake-utils, rust-overlay, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [ rust-overlay.overlays.default ];
-          config = {
-            allowUnfree = true;
-            android_sdk.accept_license = true;
+  outputs =
+    inputs@{
+      self,
+      nixpkgs,
+      flake-parts,
+      ...
+    }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = with inputs; [
+        treefmt-nix.flakeModule
+        git-hooks-nix.flakeModule
+        process-compose-flake.flakeModule
+      ];
+      systems = import inputs.systems;
+
+      perSystem =
+        {
+          config,
+          pkgs,
+          system,
+          ...
+        }:
+        {
+          devShells.default = pkgs.mkShell {
+            inputsFrom = [
+              config.pre-commit.devShell
+            ];
+            packages = with pkgs; [
+              cargo
+              process-compose
+            ];
+
+            DATABASE_URL = "postgresql://localhost:5432/app?user=app&password=passwd";
           };
+
+          treefmt = {
+            projectRootFile = "flake.nix";
+            programs = {
+              nixfmt.enable = true;
+              rustfmt.enable = true;
+            };
+
+            settings.formatter = { };
+          };
+
+          pre-commit = {
+            check.enable = true;
+            settings = {
+              hooks = {
+                ripsecrets.enable = true;
+                cargo-check.enable = true;
+                clippy.enable = true;
+                typos.enable = true;
+                treefmt.enable = true;
+              };
+            };
+          };
+
+          process-compose."dev" =
+            let
+              dbName = "app";
+              dbUser = "app";
+              dbPassword = "passwd";
+              dbPort = 5432;
+            in
+            {
+              imports = [
+                inputs.services-flake.processComposeModules.default
+              ];
+
+              services = {
+                postgres."pg1" = {
+                  enable = true;
+                  port = dbPort;
+                  initialScript.before = ''
+                    CREATE USER ${dbUser} SUPERUSER PASSWORD '${dbPassword}' CREATEDB;
+                  '';
+                  initialDatabases = [
+                    {
+                      name = dbName;
+                    }
+                  ];
+                };
+                redis."r1" = {
+                  enable = true;
+                  port = 6379;
+                };
+              };
+            };
         };
-
-        rust-toolchain = pkgs.rust-bin.stable.latest.default.override {
-          targets = [
-            "x86_64-unknown-linux-gnu"
-            "x86_64-linux-android"
-            "aarch64-linux-android"
-            "armv7-linux-androideabi"
-            "i686-linux-android"
-          ];
-        };
-
-        androidComposition = pkgs.androidenv.composeAndroidPackages {
-          cmdLineToolsVersion = "13.0";
-          toolsVersion = "26.1.1";
-          platformToolsVersion = "35.0.1";
-          buildToolsVersions = [ "30.0.3" "34.0.0" ];
-          includeEmulator = false;
-          platformVersions = [ "28" "29" "30" "33" "34" ];
-          includeSources = false;
-          includeSystemImages = false;
-          systemImageTypes = [ "google_apis_playstore" ];
-          abiVersions = [ "armeabi-v7a" "arm64-v8a" ];
-          cmakeVersions = [ "3.10.2" ];
-          includeNDK = true;
-          ndkVersions = [ "26.3.11579264" ];
-          useGoogleAPIs = false;
-          useGoogleTVAddOns = false;
-          includeExtras = [ "extras;google;gcm" ];
-        };
-
-      in {
-        devShell = pkgs.mkShell rec {
-          nativeBuildInputs = with pkgs; [
-            pkg-config
-            cargo-tauri
-            nodejs
-            nodePackages.pnpm
-            rust-toolchain
-            jdk17
-            gradle
-          ];
-
-          buildInputs = (with pkgs; [ libsoup_3 webkitgtk_4_1 openssl ])
-            ++ [ androidComposition.androidsdk ];
-
-          ANDROID_HOME = "${androidComposition.androidsdk}/libexec/android-sdk";
-          NDK_HOME = "${ANDROID_HOME}/ndk-bundle";
-          GRADLE_OPTS =
-            "-Dorg.gradle.project.android.aapt2FromMavenOverride=${androidComposition.androidsdk}/libexec/android-sdk/build-tools/34.0.0/aapt2";
-          XDG_DATA_DIRS =
-            "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}";
-        };
-      });
+    };
 }

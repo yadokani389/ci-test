@@ -7,15 +7,19 @@ on:
       - main
 
 jobs:
-  test:
-    permissions:
-      contents: write
-    runs-on: ubuntu-24.04-arm
+  check:
+    name: Check
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: test
-        run: echo hello
+      - uses: cachix/install-nix-action@v30
 
-      - name: uname
-        run: uname -a
+      - name: Test
+        run: |
+          nix run .#dev -- -D
+          nix develop -c cargo test
+          nix develop -c process-compose down
+
+      - name: Clippy
+        run: nix develop -c cargo clippy -- -Dwarnings

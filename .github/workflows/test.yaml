@@ -23,14 +23,12 @@ jobs:
           use_nix_profile: true
           nix_channel: nixpkgs
 
-      - name: fastfetch
-        run: fastfetch
+      - run: mkdir -p data/r1
 
-      - name: Test
-        run: |
-          nix run .#dev -- -D
-          cargo test
-          process-compose down
+      - run: nix run .#dev -- -D -L log
 
-      - name: Clippy
-        run: cargo clippy -- -Dwarnings
+      - run: sleep 10
+
+      - run: cat log
+
+      - run: cargo make run

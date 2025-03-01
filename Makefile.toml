@@ -1,0 +1,10 @@
+[env]
+REDIS_HOST = "${CARGO_MAKE_WORKING_DIRECTORY}/data/r1/redis.sock"
+
+[tasks.run]
+command = "cargo"
+args = ["run"]
+
+[tasks.compose-up]
+command = "nix"
+args = ["run", ".#dev", "--", "-D"]
